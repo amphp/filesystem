@@ -119,7 +119,7 @@ final class FileCache implements StringCache
         }
     }
 
-    public function set(string $key, string $value, int $ttl = null): void
+    public function set(string $key, string $value, ?int $ttl = null): void
     {
         if ($ttl < 0) {
             throw new \Error("Invalid cache TTL ({$ttl}); integer >= 0 or null required");
