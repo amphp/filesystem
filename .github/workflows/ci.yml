@@ -23,6 +23,12 @@ jobs:
             style-fix: none
             static-analysis: none
 
+          - operating-system: 'ubuntu-latest'
+            php-version: '8.4'
+            extensions: uv
+            style-fix: none
+            static-analysis: none
+
           - operating-system: 'windows-latest'
             php-version: '8.3'
             job-description: 'on Windows'
