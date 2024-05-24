@@ -1,5 +1,4 @@
 <?php declare(strict_types=1);
-/** @noinspection PhpComposerExtensionStubsInspection */
 
 namespace Amp\File\Driver;
 
@@ -8,7 +7,6 @@ use Amp\File\FilesystemDriver;
 use Amp\File\FilesystemException;
 use Amp\File\Internal;
 use Revolt\EventLoop\Driver as EventLoopDriver;
-use Revolt\EventLoop\Driver\UvDriver as UvLoopDriver;
 
 final class UvFilesystemDriver implements FilesystemDriver
 {
@@ -19,23 +17,27 @@ final class UvFilesystemDriver implements FilesystemDriver
      */
     public static function isSupported(EventLoopDriver $driver): bool
     {
-        return $driver instanceof UvLoopDriver;
+        $uvVersion = \phpversion('uv');
+        if (!$uvVersion) {
+            return false;
+        }
+
+        return \version_compare($uvVersion, '0.3.0', '>=') && $driver->getHandle() instanceof \UVLoop;
     }
 
-    /** @var \UVLoop|resource Loop resource of type uv_loop or instance of \UVLoop. */
-    private $eventLoopHandle;
+    private readonly \UVLoop $eventLoopHandle;
 
     private readonly Internal\UvPoll $poll;
 
-    /** @var bool True if ext-uv version is < 0.3.0. */
-    private readonly bool $priorVersion;
-
-    public function __construct(private readonly UvLoopDriver $driver)
+    public function __construct(private readonly EventLoopDriver $driver)
     {
+        if (!self::isSupported($driver)) {
+            throw new \Error('Event loop did not return a compatible handle');
+        }
+
         /** @psalm-suppress PropertyTypeCoercion */
         $this->eventLoopHandle = $driver->getHandle();
         $this->poll = new Internal\UvPoll($driver);
-        $this->priorVersion = \version_compare(\phpversion('uv'), '0.3.0', '<');
     }
 
     public function openFile(string $path, string $mode): UvFile
@@ -83,16 +85,6 @@ final class UvFilesystemDriver implements FilesystemDriver
             $deferred->complete($stat);
         };
 
-        if ($this->priorVersion) {
-            $callback = static function ($fh, $stat) use ($callback): void {
-                if (empty($fh)) {
-                    $stat = 0;
-                }
-
-                $callback($stat);
-            };
-        }
-
         \uv_fs_stat($this->eventLoopHandle, $path, $callback);
 
         try {
@@ -107,17 +99,9 @@ final class UvFilesystemDriver implements FilesystemDriver
         $deferred = new DeferredFuture;
         $this->poll->listen();
 
-        if ($this->priorVersion) {
-            $callback = static function ($fh, $stat) use ($deferred): void {
-                $deferred->complete(empty($fh) ? null : $stat);
-            };
-        } else {
-            $callback = static function ($stat) use ($deferred): void {
-                $deferred->complete(\is_int($stat) ? null : $stat);
-            };
-        }
-
-        \uv_fs_lstat($this->eventLoopHandle, $path, $callback);
+        \uv_fs_lstat($this->eventLoopHandle, $path, static function ($stat) use ($deferred): void {
+            $deferred->complete(\is_int($stat) ? null : $stat);
+        });
 
         try {
             return $deferred->getFuture()->await();
@@ -160,27 +144,14 @@ final class UvFilesystemDriver implements FilesystemDriver
         $deferred = new DeferredFuture;
         $this->poll->listen();
 
-        if ($this->priorVersion) {
-            $callback = static function ($fh, $target) use ($deferred): void {
-                if (!(bool) $fh) {
-                    $deferred->error(new FilesystemException("Could not read symbolic link"));
-                    return;
-                }
+        \uv_fs_readlink($this->eventLoopHandle, $target, static function ($target) use ($deferred): void {
+            if (\is_int($target)) {
+                $deferred->error(new FilesystemException("Could not read symbolic link"));
+                return;
+            }
 
-                $deferred->complete($target);
-            };
-        } else {
-            $callback = static function ($target) use ($deferred): void {
-                if (\is_int($target)) {
-                    $deferred->error(new FilesystemException("Could not read symbolic link"));
-                    return;
-                }
-
-                $deferred->complete($target);
-            };
-        }
-
-        \uv_fs_readlink($this->eventLoopHandle, $target, $callback);
+            $deferred->complete($target);
+        });
 
         try {
             return $deferred->getFuture()->await();
@@ -297,28 +268,16 @@ final class UvFilesystemDriver implements FilesystemDriver
         $deferred = new DeferredFuture;
         $this->poll->listen();
 
-        if ($this->priorVersion) {
-            \uv_fs_readdir($this->eventLoopHandle, $path, 0, static function ($fh, $data) use ($deferred, $path): void {
-                if (empty($fh) && $data !== 0) {
-                    $deferred->error(new FilesystemException("Failed reading contents from {$path}"));
-                } elseif ($data === 0) {
-                    $deferred->complete([]);
-                } else {
-                    $deferred->complete($data);
-                }
-            });
-        } else {
-            /** @noinspection PhpUndefinedFunctionInspection */
-            \uv_fs_scandir($this->eventLoopHandle, $path, static function ($data) use ($deferred, $path): void {
-                if (\is_int($data) && $data !== 0) {
-                    $deferred->error(new FilesystemException("Failed reading contents from {$path}"));
-                } elseif ($data === 0) {
-                    $deferred->complete([]);
-                } else {
-                    $deferred->complete($data);
-                }
-            });
-        }
+        /** @noinspection PhpUndefinedFunctionInspection */
+        \uv_fs_scandir($this->eventLoopHandle, $path, static function ($data) use ($deferred, $path): void {
+            if (\is_int($data) && $data !== 0) {
+                $deferred->error(new FilesystemException("Failed reading contents from {$path}"));
+            } elseif ($data === 0) {
+                $deferred->complete([]);
+            } else {
+                $deferred->complete($data);
+            }
+        });
 
         try {
             return $deferred->getFuture()->await();
@@ -528,42 +487,24 @@ final class UvFilesystemDriver implements FilesystemDriver
     {
         $deferred = new DeferredFuture;
 
-        if ($this->priorVersion) {
-            $callback = static function ($fileHandle, $readBytes, $buffer) use ($deferred): void {
-                $deferred->complete($readBytes < 0 ? null : $buffer);
-            };
-        } else {
-            $callback = static function ($readBytes, $buffer) use ($deferred): void {
-                $deferred->complete($readBytes < 0 ? null : $buffer);
-            };
-        }
+        $callback = static function ($readBytes, $buffer) use ($deferred): void {
+            $deferred->complete($readBytes < 0 ? null : $buffer);
+        };
 
         \uv_fs_read($this->eventLoopHandle, $fileHandle, 0, $length, $callback);
 
         return $deferred->getFuture()->await();
     }
 
-    private function doWrite(string $path, string $contents): void
-    {
-    }
-
     private function createGenericCallback(DeferredFuture $deferred, string $error): \Closure
     {
-        $callback = static function (int $result) use ($deferred, $error): void {
+        return static function (int $result) use ($deferred, $error): void {
             if ($result !== 0) {
                 $deferred->error(new FilesystemException($error));
                 return;
             }
 
-            $deferred->complete(null);
+            $deferred->complete();
         };
-
-        if ($this->priorVersion) {
-            $callback = static function (bool $result) use ($callback): void {
-                $callback($result ? 0 : -1);
-            };
-        }
-
-        return $callback;
     }
 }

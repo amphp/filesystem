@@ -1,5 +1,4 @@
 <?php declare(strict_types=1);
-/** @noinspection PhpComposerExtensionStubsInspection */
 
 namespace Amp\File\Driver;
 
@@ -10,22 +9,18 @@ use Amp\DeferredFuture;
 use Amp\File\Internal;
 use Amp\File\PendingOperationError;
 use Amp\Future;
-use Revolt\EventLoop\Driver\UvDriver as UvLoopDriver;
+use Revolt\EventLoop\Driver as EventLoopDriver;
 
 final class UvFile extends Internal\QueuedWritesFile
 {
     private readonly Internal\UvPoll $poll;
 
-    /** @var \UVLoop|resource */
-    private $eventLoopHandle;
+    private readonly \UVLoop $eventLoopHandle;
 
     /** @var resource */
     private $fh;
 
     private ?Future $closing = null;
-
-    /** @var bool True if ext-uv version is < 0.3.0. */
-    private readonly bool $priorVersion;
 
     private readonly DeferredFuture $onClose;
 
@@ -34,7 +29,7 @@ final class UvFile extends Internal\QueuedWritesFile
      * @param resource $fh File handle.
      */
     public function __construct(
-        UvLoopDriver $driver,
+        EventLoopDriver $driver,
         Internal\UvPoll $poll,
         $fh,
         string $path,
@@ -49,8 +44,6 @@ final class UvFile extends Internal\QueuedWritesFile
         /** @psalm-suppress PropertyTypeCoercion */
         $this->eventLoopHandle = $driver->getHandle();
         $this->onClose = new DeferredFuture;
-
-        $this->priorVersion = \version_compare(\phpversion('uv'), '0.3.0', '<');
     }
 
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
@@ -85,16 +78,6 @@ final class UvFile extends Internal\QueuedWritesFile
             $this->position += $length;
             $deferred->complete($length ? $buffer : null);
         };
-
-        if ($this->priorVersion) {
-            $onRead = static function ($fh, $result, $buffer) use ($onRead): void {
-                if ($result < 0) {
-                    $buffer = $result; // php-uv v0.3.0 changed the callback to put an int in $buffer on error.
-                }
-
-                $onRead($result, $buffer);
-            };
-        }
 
         \uv_fs_read($this->eventLoopHandle, $this->fh, $this->position, $length, $onRead);
 
