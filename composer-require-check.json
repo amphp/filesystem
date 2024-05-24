@@ -62,6 +62,7 @@
         "EIO_S_IWUSR",
         "EIO_S_IXUSR",
         "UV",
+        "UVLoop",
         "uv_fs_chmod",
         "uv_fs_chown",
         "uv_fs_fstat",
