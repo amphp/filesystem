@@ -6,21 +6,21 @@ use Amp\File\FilesystemDriver;
 use Amp\File\FilesystemException;
 use Amp\File\Internal;
 use Amp\Future;
+use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\TaskFailureThrowable;
 use Amp\Parallel\Worker\Worker;
 use Amp\Parallel\Worker\WorkerException;
 use Amp\Parallel\Worker\WorkerPool;
 use function Amp\async;
-use function Amp\Parallel\Worker\workerPool;
 
 final class ParallelFilesystemDriver implements FilesystemDriver
 {
     public const DEFAULT_WORKER_LIMIT = 8;
 
-    private WorkerPool $pool;
+    private readonly WorkerPool $pool;
 
-    /** @var int Maximum number of workers to use for open files. */
-    private int $workerLimit;
+    /** @var positive-int Maximum number of workers to use for open files. */
+    private readonly int $workerLimit;
 
     /** @var \SplObjectStorage<Worker, int> Worker storage. */
     private \SplObjectStorage $workerStorage;
@@ -29,11 +29,16 @@ final class ParallelFilesystemDriver implements FilesystemDriver
     private Future $pendingWorker;
 
     /**
-     * @param int       $workerLimit Maximum number of workers to use from the pool for open files.
+     * @param WorkerPool|null $pool Custom worker pool to use for file workers. If null, a new pool is created.
+     * @param int $workerLimit Maximum number of workers to use from the pool for open files.
      */
     public function __construct(?WorkerPool $pool = null, int $workerLimit = self::DEFAULT_WORKER_LIMIT)
     {
-        $this->pool = $pool ?? workerPool();
+        if ($workerLimit <= 0) {
+            throw new \ValueError("Worker limit must be a positive integer");
+        }
+
+        $this->pool = $pool ?? new ContextWorkerPool($workerLimit);
         $this->workerLimit = $workerLimit;
         $this->workerStorage = new \SplObjectStorage();
         $this->pendingWorker = Future::complete();
