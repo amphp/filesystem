@@ -14,6 +14,10 @@ This package can be installed as a [Composer](https://getcomposer.org/) dependen
 composer require amphp/file
 ```
 
+## Requirements
+
+- PHP 8.1+
+
 `amphp/file` works out of the box without any PHP extensions.
 It uses multiple processes by default, but also comes with a blocking driver that uses PHP's blocking functions in the current process.
 
@@ -163,7 +167,7 @@ array(13) {
 
 ## Security
 
-If you discover any security related issues, please email [`me@kelunik.com`](mailto:me@kelunik.com) instead of using the issue tracker.
+If you discover any security related issues, please use the private security issue reporter instead of using the public issue tracker.
 
 ## License
 

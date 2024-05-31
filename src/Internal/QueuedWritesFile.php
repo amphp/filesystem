@@ -38,8 +38,8 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
         }
 
         $this->queue = new \SplQueue();
-        $this->writable = $this->mode[0] !== 'r';
-        $this->position = $this->mode[0] === 'a' ? $this->size : 0;
+        $this->writable = !\str_contains($this->mode, 'r') || \str_contains($this->mode, '+');
+        $this->position = \str_contains($this->mode, 'a') ? $this->size : 0;
     }
 
     public function __destruct()

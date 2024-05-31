@@ -22,7 +22,7 @@ final class ParallelFilesystemDriver implements FilesystemDriver
     /** @var int Maximum number of workers to use for open files. */
     private int $workerLimit;
 
-    /** @var \SplObjectStorage Worker storage. */
+    /** @var \SplObjectStorage<Worker, int> Worker storage. */
     private \SplObjectStorage $workerStorage;
 
     /** @var Future Pending worker request */
@@ -31,11 +31,11 @@ final class ParallelFilesystemDriver implements FilesystemDriver
     /**
      * @param int       $workerLimit Maximum number of workers to use from the pool for open files.
      */
-    public function __construct(WorkerPool $pool = null, int $workerLimit = self::DEFAULT_WORKER_LIMIT)
+    public function __construct(?WorkerPool $pool = null, int $workerLimit = self::DEFAULT_WORKER_LIMIT)
     {
         $this->pool = $pool ?? workerPool();
         $this->workerLimit = $workerLimit;
-        $this->workerStorage = new \SplObjectStorage;
+        $this->workerStorage = new \SplObjectStorage();
         $this->pendingWorker = Future::complete();
     }
 
@@ -45,8 +45,11 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
         $workerStorage = $this->workerStorage;
         $worker = new Internal\FileWorker($worker, static function (Worker $worker) use ($workerStorage): void {
-            \assert($workerStorage->contains($worker));
-            if (($workerStorage[$worker] -=1) === 0 || !$worker->isRunning()) {
+            if (!$workerStorage->contains($worker)) {
+                return;
+            }
+
+            if (($workerStorage[$worker] -= 1) === 0 || !$worker->isRunning()) {
                 $workerStorage->detach($worker);
             }
         });

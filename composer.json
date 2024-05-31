@@ -43,7 +43,7 @@
     "require-dev": {
         "amphp/phpunit-util": "^3",
         "phpunit/phpunit": "^9",
-        "psalm/phar": "^5.4",
+        "psalm/phar": "5.22.2",
         "amphp/php-cs-fixer-config": "^2"
     },
     "suggest": {
@@ -59,11 +59,13 @@
     "autoload-dev": {
         "psr-4": {
             "Amp\\File\\Test\\": "test",
+            "Amp\\Cache\\Test\\": "vendor/amphp/cache/test",
             "Amp\\Sync\\": "vendor/amphp/sync/test"
         }
     },
     "config": {
         "preferred-install": {
+            "amphp/cache": "source",
             "amphp/sync": "source"
         }
     },

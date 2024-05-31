@@ -55,7 +55,6 @@ function createDefaultDriver(): FilesystemDriver
     $driver = EventLoop::getDriver();
 
     if (UvFilesystemDriver::isSupported($driver)) {
-        /** @var EventLoop\Driver\UvDriver $driver */
         return new UvFilesystemDriver($driver);
     }
 

@@ -2,7 +2,7 @@
 
 namespace Amp\File\Internal;
 
-use Revolt\EventLoop\Driver\UvDriver as UvLoopDriver;
+use Revolt\EventLoop\Driver as EventLoopDriver;
 
 /** @internal */
 final class UvPoll
@@ -11,7 +11,7 @@ final class UvPoll
 
     private int $requests = 0;
 
-    public function __construct(private readonly UvLoopDriver $driver)
+    public function __construct(private readonly EventLoopDriver $driver)
     {
         // Create dummy watcher to keep loop running while polling.
 
