@@ -18,11 +18,8 @@ final class UvFilesystemDriver implements FilesystemDriver
     public static function isSupported(EventLoopDriver $driver): bool
     {
         $uvVersion = \phpversion('uv');
-        if (!$uvVersion) {
-            return false;
-        }
 
-        return \version_compare($uvVersion, '0.3.0', '>=') && $driver->getHandle() instanceof \UVLoop;
+        return $uvVersion && \version_compare($uvVersion, '0.3.0', '>=') && $driver->getHandle() instanceof \UVLoop;
     }
 
     private readonly \UVLoop $eventLoopHandle;
