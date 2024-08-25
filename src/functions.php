@@ -26,7 +26,11 @@ function filesystem(?FilesystemDriver $driver = null): Filesystem
             return $map[$loop];
         }
 
-        $driver = new StatusCachingFilesystemDriver(createDefaultDriver());
+        $driver = createDefaultDriver();
+
+        if (!\defined("AMP_WORKER")) { // Prevent caching in workers, cache in parent instead.
+            $driver = new StatusCachingFilesystemDriver($driver);
+        }
     }
 
     return $map[$loop] = new Filesystem($driver);
