@@ -30,7 +30,8 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
     /**
      * @param WorkerPool|null $pool Custom worker pool to use for file workers. If null, a new pool is created.
-     * @param int $workerLimit Maximum number of workers to use from the pool for open files.
+     * @param int $workerLimit [Deprecated] Maximum number of workers to use from the pool for open files. Instead of
+     *      using this parameter, provide a pool with a limited number of workers.
      */
     public function __construct(?WorkerPool $pool = null, int $workerLimit = self::DEFAULT_WORKER_LIMIT)
     {
