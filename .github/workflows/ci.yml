@@ -12,10 +12,13 @@ jobs:
           - operating-system: 'ubuntu-latest'
             php-version: '8.1'
             extensions: uv, eio
+            install-eio: true
 
           - operating-system: 'ubuntu-latest'
             php-version: '8.2'
-            extensions: uv, eio
+            extensions: uv
+            style-fix: none
+            static-analysis: none
 
           - operating-system: 'ubuntu-latest'
             php-version: '8.3'
