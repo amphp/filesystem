@@ -10,9 +10,9 @@ use function Amp\delay;
 
 /**
  * Async mutex based on flock.
- * 
- * A crash of the program will automatically release the lock, but the lockfiles will never be removed from the filesystem (even in case of successful release).  
- * 
+ *
+ * A crash of the program will automatically release the lock, but the lockfiles will never be removed from the filesystem (even in case of successful release).
+ *
  * For a mutex that removes the lockfiles but does not release the lock in case of a crash (requiring manual user action to clean up), see FileMutex.
  */
 final class LockingFileMutex implements Mutex

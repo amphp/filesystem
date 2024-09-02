@@ -10,10 +10,10 @@ use function Amp\delay;
 
 /**
  * Async mutex based on files.
- * 
- * A crash of the program will NOT release the lock, manual user action will be required to remove the lockfile.  
- * 
- * For a mutex that will automatically release the lock in case of a crash, see LockingFileMutex.  
+ *
+ * A crash of the program will NOT release the lock, manual user action will be required to remove the lockfile.
+ *
+ * For a mutex that will automatically release the lock in case of a crash, see LockingFileMutex.
  */
 final class FileMutex implements Mutex
 {
