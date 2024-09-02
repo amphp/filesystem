@@ -9,7 +9,7 @@ use Amp\Sync\SyncException;
 use function Amp\delay;
 
 /**
- * Asynckeyed  mutex based on files.
+ * Async keyed mutex based on files.
  *
  * A crash of the program will NOT release the lock, manual user action will be required to remove the lockfile.
  *
