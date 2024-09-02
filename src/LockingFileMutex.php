@@ -9,13 +9,13 @@ use Amp\Sync\SyncException;
 use function Amp\delay;
 
 /**
- * Async mutex based on files.
+ * Async mutex based on flock.
  * 
- * A crash of the program will NOT release the lock, manual user action will be required to remove the lockfile.  
+ * A crash of the program will automatically release the lock, but the lockfiles will never be removed from the filesystem (even in case of successful release).  
  * 
- * For a mutex that will automatically release the lock in case of a crash, see LockingFileMutex.  
+ * For a mutex that removes the lockfiles but does not release the lock in case of a crash (requiring manual user action to clean up), see FileMutex.
  */
-final class FileMutex implements Mutex
+final class LockingFileMutex implements Mutex
 {
     private const LATENCY_TIMEOUT = 0.01;
     private const DELAY_LIMIT = 1;
@@ -38,39 +38,16 @@ final class FileMutex implements Mutex
         if (!$this->filesystem->isDirectory($this->directory)) {
             throw new SyncException(\sprintf('Directory of "%s" does not exist or is not a directory', $this->fileName));
         }
+        $f = \fopen($this->fileName, 'c');
 
         // Try to create the lock file. If the file already exists, someone else
         // has the lock, so set an asynchronous timer and try again.
         for ($attempt = 0; true; ++$attempt) {
-            try {
-                $file = $this->filesystem->openFile($this->fileName, 'x');
-
-                // Return a lock object that can be used to release the lock on the mutex.
-                $lock = new Lock($this->release(...));
-
-                $file->close();
-
+            if (\flock($f, LOCK_EX|LOCK_NB)) {
+                $lock = new Lock(fn () => \flock($f, LOCK_UN));
                 return $lock;
-            } catch (FilesystemException) {
-                delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * (2 ** $attempt)), cancellation: $cancellation);
             }
-        }
-    }
-
-    /**
-     * Releases the lock on the mutex.
-     *
-     * @throws SyncException
-     */
-    private function release(): void
-    {
-        try {
-            $this->filesystem->deleteFile($this->fileName);
-        } catch (\Throwable $exception) {
-            throw new SyncException(
-                'Failed to unlock the mutex file: ' . $this->fileName,
-                previous: $exception,
-            );
+            delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * (2 ** $attempt)), cancellation: $cancellation);
         }
     }
 }
