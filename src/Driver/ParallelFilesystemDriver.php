@@ -48,11 +48,11 @@ final class ParallelFilesystemDriver implements FilesystemDriver
             );
         }
 
-        $workerLimit ??= match ($pool::class) {
+        $workerLimit ??= $pool ? match ($pool::class) {
             ContextWorkerPool::class => \min(self::DEFAULT_WORKER_LIMIT, $pool->getLimit()),
             DelegatingWorkerPool::class => $pool->getLimit(),
             default => self::DEFAULT_WORKER_LIMIT,
-        };
+        } : self::DEFAULT_WORKER_LIMIT;
 
         if ($workerLimit <= 0) {
             throw new \ValueError("Worker limit must be a positive integer");
@@ -188,10 +188,12 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
     public function touch(string $path, ?int $modificationTime, ?int $accessTime): void
     {
-        $this->runFileTask(new Internal\FileTask(
-            "touch",
-            [$path, $modificationTime, $accessTime]
-        ));
+        $this->runFileTask(
+            new Internal\FileTask(
+                "touch",
+                [$path, $modificationTime, $accessTime]
+            )
+        );
     }
 
     public function read(string $path): string
