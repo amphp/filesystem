@@ -8,6 +8,7 @@ use Amp\File\Internal;
 use Amp\Future;
 use Amp\Parallel\Worker\ContextWorkerPool;
 use Amp\Parallel\Worker\DelegatingWorkerPool;
+use Amp\Parallel\Worker\LimitedWorkerPool;
 use Amp\Parallel\Worker\TaskFailureThrowable;
 use Amp\Parallel\Worker\Worker;
 use Amp\Parallel\Worker\WorkerException;
@@ -32,7 +33,8 @@ final class ParallelFilesystemDriver implements FilesystemDriver
     /**
      * @param WorkerPool|null $pool Custom worker pool to use for file workers. If null, a new pool is created.
      * @param int|null $workerLimit [Deprecated] Maximum number of workers to use from the pool for open files. Instead
-     *      of using this parameter, provide a pool with a limited number of workers or use {@see DelegatingWorkerPool}.
+     *      of using this parameter, provide a pool with a limited number using an instance of {@see LimitedWorkerPool}
+     *      such as {@see ContextWorkerPool}.
      */
     public function __construct(?WorkerPool $pool = null, ?int $workerLimit = null)
     {
@@ -42,18 +44,14 @@ final class ParallelFilesystemDriver implements FilesystemDriver
         if ($workerLimit !== null) {
             \trigger_error(
                 'The $workerLimit parameter is deprecated and will be removed in the next major version.' .
-                ' To limit the number of workers used from the given pool, use ' . DelegatingWorkerPool::class .
-                ' instead.',
+                ' To limit the number of workers used from the given pool, use an instance of ' .
+                LimitedWorkerPool::class . ' instead, such as ' . ContextWorkerPool::class . ' or ' .
+                DelegatingWorkerPool::class,
                 \E_USER_DEPRECATED,
             );
         }
 
-        $workerLimit ??= $pool ? match ($pool::class) {
-            ContextWorkerPool::class => \min(self::DEFAULT_WORKER_LIMIT, $pool->getLimit()),
-            DelegatingWorkerPool::class => $pool->getLimit(),
-            default => self::DEFAULT_WORKER_LIMIT,
-        } : self::DEFAULT_WORKER_LIMIT;
-
+        $workerLimit ??= $pool instanceof LimitedWorkerPool ? $pool->getWorkerLimit() : self::DEFAULT_WORKER_LIMIT;
         if ($workerLimit <= 0) {
             throw new \ValueError("Worker limit must be a positive integer");
         }
