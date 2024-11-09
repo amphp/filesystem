@@ -6,37 +6,58 @@ use Amp\File\FilesystemDriver;
 use Amp\File\FilesystemException;
 use Amp\File\Internal;
 use Amp\Future;
+use Amp\Parallel\Worker\ContextWorkerPool;
+use Amp\Parallel\Worker\DelegatingWorkerPool;
+use Amp\Parallel\Worker\LimitedWorkerPool;
 use Amp\Parallel\Worker\TaskFailureThrowable;
 use Amp\Parallel\Worker\Worker;
 use Amp\Parallel\Worker\WorkerException;
 use Amp\Parallel\Worker\WorkerPool;
 use function Amp\async;
-use function Amp\Parallel\Worker\workerPool;
 
 final class ParallelFilesystemDriver implements FilesystemDriver
 {
     public const DEFAULT_WORKER_LIMIT = 8;
 
-    private WorkerPool $pool;
+    private readonly WorkerPool $pool;
 
-    /** @var int Maximum number of workers to use for open files. */
-    private int $workerLimit;
+    /** @var positive-int Maximum number of workers to use for open files. */
+    private readonly int $workerLimit;
 
-    /** @var \SplObjectStorage<Worker, int> Worker storage. */
-    private \SplObjectStorage $workerStorage;
+    /** @var \WeakMap<Worker, int> */
+    private \WeakMap $workerStorage;
 
-    /** @var Future Pending worker request */
-    private Future $pendingWorker;
+    /** @var Future<Worker>|null Pending worker request */
+    private ?Future $pendingWorker = null;
 
     /**
-     * @param int       $workerLimit Maximum number of workers to use from the pool for open files.
+     * @param WorkerPool|null $pool Custom worker pool to use for file workers. If null, a new pool is created.
+     * @param int|null $workerLimit [Deprecated] Maximum number of workers to use from the pool for open files. Instead
+     *      of using this parameter, provide a pool with a limited number using an instance of {@see LimitedWorkerPool}
+     *      such as {@see ContextWorkerPool}.
      */
-    public function __construct(?WorkerPool $pool = null, int $workerLimit = self::DEFAULT_WORKER_LIMIT)
+    public function __construct(?WorkerPool $pool = null, ?int $workerLimit = null)
     {
-        $this->pool = $pool ?? workerPool();
+        /** @var \WeakMap<Worker, int> For Psalm. */
+        $this->workerStorage = new \WeakMap();
+
+        if ($workerLimit !== null) {
+            \trigger_error(
+                'The $workerLimit parameter is deprecated and will be removed in the next major version.' .
+                ' To limit the number of workers used from the given pool, use an instance of ' .
+                LimitedWorkerPool::class . ' instead, such as ' . ContextWorkerPool::class . ' or ' .
+                DelegatingWorkerPool::class,
+                \E_USER_DEPRECATED,
+            );
+        }
+
+        $workerLimit ??= $pool instanceof LimitedWorkerPool ? $pool->getWorkerLimit() : self::DEFAULT_WORKER_LIMIT;
+        if ($workerLimit <= 0) {
+            throw new \ValueError("Worker limit must be a positive integer");
+        }
+
+        $this->pool = $pool ?? new ContextWorkerPool($workerLimit);
         $this->workerLimit = $workerLimit;
-        $this->workerStorage = new \SplObjectStorage();
-        $this->pendingWorker = Future::complete();
     }
 
     public function openFile(string $path, string $mode): ParallelFile
@@ -45,12 +66,12 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
         $workerStorage = $this->workerStorage;
         $worker = new Internal\FileWorker($worker, static function (Worker $worker) use ($workerStorage): void {
-            if (!$workerStorage->contains($worker)) {
+            if (!isset($workerStorage[$worker])) {
                 return;
             }
 
             if (($workerStorage[$worker] -= 1) === 0 || !$worker->isRunning()) {
-                $workerStorage->detach($worker);
+                unset($workerStorage[$worker]);
             }
         });
 
@@ -67,26 +88,19 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
     private function selectWorker(): Worker
     {
-        $this->pendingWorker->await(); // Wait for any currently pending request for a worker.
+        $this->pendingWorker?->await(); // Wait for any currently pending request for a worker.
 
         if ($this->workerStorage->count() < $this->workerLimit) {
             $this->pendingWorker = async($this->pool->getWorker(...));
             $worker = $this->pendingWorker->await();
 
-            if ($this->workerStorage->contains($worker)) {
-                // amphp/parallel v1.x may return an already used worker from the pool.
-                $this->workerStorage[$worker] += 1;
-            } else {
-                // amphp/parallel v2.x should always return an unused worker.
-                $this->workerStorage->attach($worker, 1);
-            }
+            $this->workerStorage[$worker] = 1;
 
             return $worker;
         }
 
         $max = \PHP_INT_MAX;
-        foreach ($this->workerStorage as $storedWorker) {
-            $count = $this->workerStorage[$storedWorker];
+        foreach ($this->workerStorage as $storedWorker => $count) {
             if ($count <= $max) {
                 $worker = $storedWorker;
                 $max = $count;
@@ -96,7 +110,7 @@ final class ParallelFilesystemDriver implements FilesystemDriver
         \assert(isset($worker) && $worker instanceof Worker);
 
         if (!$worker->isRunning()) {
-            $this->workerStorage->detach($worker);
+            unset($this->workerStorage[$worker]);
             return $this->selectWorker();
         }
 
@@ -172,10 +186,12 @@ final class ParallelFilesystemDriver implements FilesystemDriver
 
     public function touch(string $path, ?int $modificationTime, ?int $accessTime): void
     {
-        $this->runFileTask(new Internal\FileTask(
-            "touch",
-            [$path, $modificationTime, $accessTime]
-        ));
+        $this->runFileTask(
+            new Internal\FileTask(
+                "touch",
+                [$path, $modificationTime, $accessTime]
+            )
+        );
     }
 
     public function read(string $path): string

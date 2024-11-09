@@ -2,7 +2,6 @@
 
 namespace Amp\File;
 
-use Amp\File\Driver\BlockingFilesystemDriver;
 use Amp\File\Driver\EioFilesystemDriver;
 use Amp\File\Driver\ParallelFilesystemDriver;
 use Amp\File\Driver\StatusCachingFilesystemDriver;
@@ -27,24 +26,14 @@ function filesystem(?FilesystemDriver $driver = null): Filesystem
             return $map[$loop];
         }
 
-        $defaultDriver = createDefaultDriver();
+        $driver = createDefaultDriver();
 
         if (!\defined("AMP_WORKER")) { // Prevent caching in workers, cache in parent instead.
-            $defaultDriver = new StatusCachingFilesystemDriver($defaultDriver);
+            $driver = new StatusCachingFilesystemDriver($driver);
         }
-
-        $filesystem = new Filesystem($defaultDriver);
-    } else {
-        $filesystem = new Filesystem($driver);
     }
 
-    if (\defined("AMP_WORKER") && $driver instanceof ParallelFilesystemDriver) {
-        throw new \Error("Cannot use the parallel driver within a worker");
-    }
-
-    $map[$loop] = $filesystem;
-
-    return $filesystem;
+    return $map[$loop] = new Filesystem($driver);
 }
 
 /**
@@ -60,10 +49,6 @@ function createDefaultDriver(): FilesystemDriver
 
     if (EioFilesystemDriver::isSupported()) {
         return new EioFilesystemDriver($driver);
-    }
-
-    if (\defined("AMP_WORKER")) { // Prevent spawning infinite workers.
-        return new BlockingFilesystemDriver;
     }
 
     return new ParallelFilesystemDriver;
