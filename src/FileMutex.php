@@ -13,6 +13,8 @@ final class FileMutex implements Mutex
     private const LATENCY_TIMEOUT = 0.01;
     private const DELAY_LIMIT = 1;
 
+    private static ?\Closure $errorHandler = null;
+
     private readonly Filesystem $filesystem;
 
     private readonly string $directory;
@@ -26,39 +28,61 @@ final class FileMutex implements Mutex
         $this->directory = \dirname($this->fileName);
     }
 
+    /**
+     * @throws SyncException
+     */
     public function acquire(?Cancellation $cancellation = null): Lock
     {
         if (!$this->filesystem->isDirectory($this->directory)) {
             throw new SyncException(\sprintf('Directory of "%s" does not exist or is not a directory', $this->fileName));
         }
 
-        // Try to create the lock file. If the file already exists, someone else
-        // has the lock, so set an asynchronous timer and try again.
+        // Try to create and lock the file. If flock fails, someone else already has the lock,
+        // so set an asynchronous timer and try again.
         for ($attempt = 0; true; ++$attempt) {
+            \set_error_handler(self::$errorHandler ??= static fn () => true);
+
             try {
-                $file = $this->filesystem->openFile($this->fileName, 'x');
+                $handle = \fopen($this->fileName, 'c');
+                if (!$handle) {
+                    throw new SyncException(\sprintf(
+                        'Unable to open or create file at %s: %s',
+                        $this->fileName,
+                        \error_get_last()['message'] ?? 'Unknown error',
+                    ));
+                }
 
-                // Return a lock object that can be used to release the lock on the mutex.
-                $lock = new Lock($this->release(...));
-
-                $file->close();
-
-                return $lock;
-            } catch (FilesystemException) {
-                delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * (2 ** $attempt)), cancellation: $cancellation);
+                if (\flock($handle, \LOCK_EX | \LOCK_NB)) {
+                    return new Lock(fn () => $this->release($handle));
+                }
+            } finally {
+                \restore_error_handler();
             }
+
+            $multiplier = 2 ** \min(31, $attempt);
+            delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * $multiplier), cancellation: $cancellation);
         }
     }
 
     /**
      * Releases the lock on the mutex.
      *
+     * @param resource $handle
+     *
      * @throws SyncException
      */
-    private function release(): void
+    private function release($handle): void
     {
         try {
             $this->filesystem->deleteFile($this->fileName);
+
+            \set_error_handler(self::$errorHandler ??= static fn () => true);
+
+            try {
+                \fclose($handle);
+            } finally {
+                \restore_error_handler();
+            }
         } catch (\Throwable $exception) {
             throw new SyncException(
                 'Failed to unlock the mutex file: ' . $this->fileName,
