@@ -16,9 +16,9 @@ class ParallelFileTest extends AsyncFileTest
 
     protected function createDriver(int $workerLimit = self::DEFAULT_WORKER_LIMIT): File\FilesystemDriver
     {
-        $this->pool = new ContextWorkerPool();
+        $this->pool = new ContextWorkerPool($workerLimit);
 
-        return new ParallelFilesystemDriver($this->pool, $workerLimit);
+        return new ParallelFilesystemDriver($this->pool);
     }
 
     protected function tearDown(): void
