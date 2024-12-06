@@ -44,15 +44,7 @@ final class FileMutex implements Mutex
 
             try {
                 $handle = \fopen($this->fileName, 'c');
-                if (!$handle) {
-                    throw new SyncException(\sprintf(
-                        'Unable to open or create file at %s: %s',
-                        $this->fileName,
-                        \error_get_last()['message'] ?? 'Unknown error',
-                    ));
-                }
-
-                if (\flock($handle, \LOCK_EX | \LOCK_NB)) {
+                if ($handle && \flock($handle, \LOCK_EX | \LOCK_NB)) {
                     return new Lock(fn () => $this->release($handle));
                 }
             } finally {
