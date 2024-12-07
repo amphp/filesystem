@@ -44,8 +44,18 @@ final class FileMutex implements Mutex
 
             try {
                 $handle = \fopen($this->fileName, 'c');
-                if ($handle && \flock($handle, \LOCK_EX | \LOCK_NB)) {
-                    return new Lock(fn () => $this->release($handle));
+                if ($handle) {
+                    if (\flock($handle, \LOCK_EX | \LOCK_NB, $wouldBlock)) {
+                        return new Lock(fn () => $this->release($handle));
+                    }
+
+                    if (!$wouldBlock) {
+                        throw new FilesystemException(\sprintf(
+                            'flock call on "%s" failed: %s',
+                            $this->fileName,
+                            \error_get_last()['message'] ?? 'Unknown error',
+                        ));
+                    }
                 }
             } finally {
                 \restore_error_handler();
