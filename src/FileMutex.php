@@ -39,7 +39,7 @@ final class FileMutex implements Mutex
         // so set an asynchronous timer and try again.
         for ($attempt = 0; true; ++$attempt) {
             try {
-                $file = $this->filesystem->openFile($this->fileName, 'c');
+                $file = $this->filesystem->openFile($this->fileName, 'a');
                 if ($file->lock(LockMode::Exclusive)) {
                     return new Lock(fn () => $this->release($file));
                 }
