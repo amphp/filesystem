@@ -20,6 +20,8 @@
         "deleteFile",
         "filesystem",
         "openFile",
+        "lock",
+        "unlock",
         "eio_cancel",
         "eio_chmod",
         "eio_chown",

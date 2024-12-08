@@ -9,6 +9,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\File\File;
 use Amp\File\Internal;
+use Amp\File\LockMode;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -140,6 +141,35 @@ final class ParallelFile implements File, \IteratorAggregate
     public function eof(): bool
     {
         return $this->pendingWrites === 0 && $this->size <= $this->position;
+    }
+
+    public function lock(LockMode $mode): bool
+    {
+        return $this->flock($mode);
+    }
+
+    public function unlock(): void
+    {
+        $this->flock(null);
+    }
+
+    private function flock(?LockMode $mode): bool
+    {
+        if ($this->id === null) {
+            throw new ClosedException("The file has been closed");
+        }
+
+        $this->busy = true;
+
+        try {
+            return $this->worker->execute(new Internal\FileTask('flock', [$mode], $this->id));
+        } catch (TaskFailureException $exception) {
+            throw new StreamException("Attempting to lock the file failed", 0, $exception);
+        } catch (WorkerException $exception) {
+            throw new StreamException("Sending the task to the worker failed", 0, $exception);
+        } finally {
+            $this->busy = false;
+        }
     }
 
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string

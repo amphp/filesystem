@@ -2,6 +2,7 @@
 
 namespace Amp\File;
 
+use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStream;
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
@@ -54,4 +55,16 @@ interface File extends ReadableStream, WritableStream
      * @param int $size New file size.
      */
     public function truncate(int $size): void;
+
+    /**
+     * Makes a non-blocking attempt to lock the file. Returns true if the lock was obtained.
+     *
+     * @throws ClosedException If the file has been closed.
+     */
+    public function lock(LockMode $mode): bool;
+
+    /**
+     * @throws ClosedException If the file has been closed.
+     */
+    public function unlock(): void;
 }

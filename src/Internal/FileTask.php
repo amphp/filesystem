@@ -101,6 +101,15 @@ final class FileTask implements Task
                     $file->close();
                     return null;
 
+                case "flock":
+                    [$mode] = $this->args;
+                    if ($mode) {
+                        return $file->lock($mode);
+                    }
+
+                    $file->unlock();
+                    return null;
+
                 default:
                     throw new \Error('Invalid operation');
             }

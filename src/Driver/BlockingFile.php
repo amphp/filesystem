@@ -8,6 +8,8 @@ use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\File\File;
+use Amp\File\Internal;
+use Amp\File\LockMode;
 use Amp\File\Whence;
 
 /**
@@ -55,18 +57,26 @@ final class BlockingFile implements File, \IteratorAggregate
         }
     }
 
+    public function lock(LockMode $mode): bool
+    {
+        return Internal\lock($this->path, $this->getFileHandle(), $mode);
+    }
+
+    public function unlock(): void
+    {
+        Internal\unlock($this->path, $this->getFileHandle());
+    }
+
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
+        $handle = $this->getFileHandle();
 
         try {
             \set_error_handler(function (int $type, string $message): never {
                 throw new StreamException("Failed reading from file '{$this->path}': {$message}");
             });
 
-            $data = \fread($this->handle, $length);
+            $data = \fread($handle, $length);
             if ($data === false) {
                 throw new StreamException("Failed reading from file '{$this->path}'");
             }
@@ -79,16 +89,14 @@ final class BlockingFile implements File, \IteratorAggregate
 
     public function write(string $bytes): void
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
+        $handle = $this->getFileHandle();
 
         try {
             \set_error_handler(function (int $type, string $message): never {
                 throw new StreamException("Failed writing to file '{$this->path}': {$message}");
             });
 
-            $length = \fwrite($this->handle, $bytes);
+            $length = \fwrite($handle, $bytes);
             if ($length === false) {
                 throw new StreamException("Failed writing to file '{$this->path}'");
             }
@@ -146,16 +154,14 @@ final class BlockingFile implements File, \IteratorAggregate
 
     public function truncate(int $size): void
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
+        $handle = $this->getFileHandle();
 
         try {
             \set_error_handler(function (int $type, string $message): never {
                 throw new StreamException("Could not truncate file '{$this->path}': {$message}");
             });
 
-            if (!\ftruncate($this->handle, $size)) {
+            if (!\ftruncate($handle, $size)) {
                 throw new StreamException("Could not truncate file '{$this->path}'");
             }
         } finally {
@@ -165,9 +171,7 @@ final class BlockingFile implements File, \IteratorAggregate
 
     public function seek(int $position, Whence $whence = Whence::Start): int
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
+        $handle = $this->getFileHandle();
 
         $mode = match ($whence) {
             Whence::Start => SEEK_SET,
@@ -181,7 +185,7 @@ final class BlockingFile implements File, \IteratorAggregate
                 throw new StreamException("Could not seek in file '{$this->path}': {$message}");
             });
 
-            if (\fseek($this->handle, $position, $mode) === -1) {
+            if (\fseek($handle, $position, $mode) === -1) {
                 throw new StreamException("Could not seek in file '{$this->path}'");
             }
 
@@ -193,20 +197,12 @@ final class BlockingFile implements File, \IteratorAggregate
 
     public function tell(): int
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
-
-        return \ftell($this->handle);
+        return \ftell($this->getFileHandle());
     }
 
     public function eof(): bool
     {
-        if ($this->handle === null) {
-            throw new ClosedException("The file '{$this->path}' has been closed");
-        }
-
-        return \feof($this->handle);
+        return \feof($this->getFileHandle());
     }
 
     public function getPath(): string
@@ -237,5 +233,19 @@ final class BlockingFile implements File, \IteratorAggregate
     public function getId(): int
     {
         return $this->id;
+    }
+
+    /**
+     * @return resource
+     *
+     * @throws ClosedException
+     */
+    private function getFileHandle()
+    {
+        if ($this->handle === null) {
+            throw new ClosedException("The file '{$this->path}' has been closed");
+        }
+
+        return $this->handle;
     }
 }

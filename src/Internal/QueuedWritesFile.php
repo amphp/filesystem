@@ -6,6 +6,7 @@ use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStreamIteratorAggregate;
 use Amp\Cancellation;
 use Amp\File\File;
+use Amp\File\LockMode;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -119,6 +120,23 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
         $this->queue->push($future);
 
         $future->await();
+    }
+
+    /**
+     * @return resource
+     *
+     * @throws ClosedException If the file has been closed.
+     */
+    abstract protected function getFileHandle();
+
+    public function lock(LockMode $mode): bool
+    {
+        return lock($this->getPath(), $this->getFileHandle(), $mode);
+    }
+
+    public function unlock(): void
+    {
+        unlock($this->getPath(), $this->getFileHandle());
     }
 
     public function seek(int $position, Whence $whence = Whence::Start): int
