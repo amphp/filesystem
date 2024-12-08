@@ -69,10 +69,15 @@ final class FileMutex implements Mutex
      */
     private function release(File $file): void
     {
+        $file->close();
+
         try {
-            $this->filesystem->deleteFile($this->fileName); // Delete file while holding the lock.
-            $file->close();
+            $this->filesystem->deleteFile($this->fileName);
         } catch (FilesystemException $exception) {
+            if (IS_WINDOWS) {
+                return; // Windows will fail to delete the file if another handle is open.
+            }
+
             throw new SyncException(
                 'Failed to unlock the mutex file: ' . $this->fileName,
                 previous: $exception,
