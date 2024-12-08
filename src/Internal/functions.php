@@ -52,8 +52,7 @@ function lock(string $path, $handle, LockMode $mode, ?Cancellation $cancellation
             );
         }
 
-        $multiplier = 2 ** \min(7, $attempt);
-        delay(\min($delayLimit, $latencyTimeout * $multiplier), cancellation: $cancellation);
+        delay(\min($delayLimit, $latencyTimeout * (2 ** $attempt)), cancellation: $cancellation);
     }
 }
 

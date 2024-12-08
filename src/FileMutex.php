@@ -60,8 +60,7 @@ final class FileMutex implements Mutex
                     }
 
                     // Windows fails to open the file if a lock is held.
-                    $multiplier = 2 ** \min(7, $attempt);
-                    delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * $multiplier), cancellation: $cancellation);
+                    delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * (2 ** $attempt)), cancellation: $cancellation);
                 }
             }
         } catch (FilesystemException|StreamException $exception) {
