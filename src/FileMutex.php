@@ -2,11 +2,13 @@
 
 namespace Amp\File;
 
+use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
 use Amp\Sync\Lock;
 use Amp\Sync\Mutex;
 use Amp\Sync\SyncException;
 use function Amp\delay;
+use const Amp\Process\IS_WINDOWS;
 
 final class FileMutex implements Mutex
 {
@@ -40,12 +42,19 @@ final class FileMutex implements Mutex
         for ($attempt = 0; true; ++$attempt) {
             try {
                 $file = $this->filesystem->openFile($this->fileName, 'a');
-                if ($file->lock(LockMode::Exclusive)) {
-                    return new Lock(fn () => $this->release($file));
+
+                try {
+                    if ($file->lock(LockMode::Exclusive)) {
+                        return new Lock(fn () => $this->release($file));
+                    }
+                    $file->close();
+                } catch (FilesystemException|StreamException $exception) {
+                    throw new SyncException($exception->getMessage(), previous: $exception);
                 }
-                $file->close();
             } catch (FilesystemException $exception) {
-                throw new SyncException($exception->getMessage(), previous: $exception);
+                if (!IS_WINDOWS) { // Windows fails to open the file if a lock is held.
+                    throw new SyncException($exception->getMessage(), previous: $exception);
+                }
             }
 
             $multiplier = 2 ** \min(31, $attempt);

@@ -59,11 +59,13 @@ interface File extends ReadableStream, WritableStream
     /**
      * Makes a non-blocking attempt to lock the file. Returns true if the lock was obtained.
      *
+     * @throws FilesystemException If there is an error when attempting to lock the file.
      * @throws ClosedException If the file has been closed.
      */
     public function lock(LockMode $mode): bool;
 
     /**
+     * @throws FilesystemException If there is an error when attempting to unlock the file.
      * @throws ClosedException If the file has been closed.
      */
     public function unlock(): void;
