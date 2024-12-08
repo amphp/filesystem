@@ -54,8 +54,7 @@ final class FileTask implements Task
             if ("fopen" === $this->operation) {
                 $file = $driver->openFile(...$this->args);
 
-                $size = $driver->getStatus($file->getPath())["size"]
-                    ?? throw new FilesystemException("Could not determine file size");
+                $size = $driver->getStatus($file->getPath())["size"] ?? 0;
 
                 $id = $file->getId();
                 $cache->set((string) $id, $file);
