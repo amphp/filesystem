@@ -29,6 +29,8 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
 
     private bool $writable;
 
+    private ?LockMode $lockMode = null;
+
     public function __construct(
         private readonly string $path,
         private readonly string $mode,
@@ -129,14 +131,21 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
      */
     abstract protected function getFileHandle();
 
-    public function lock(LockMode $mode): bool
+    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void
     {
-        return lock($this->getPath(), $this->getFileHandle(), $mode);
+        lock($this->getPath(), $this->getFileHandle(), $mode, $cancellation);
+        $this->lockMode = $mode;
     }
 
     public function unlock(): void
     {
         unlock($this->getPath(), $this->getFileHandle());
+        $this->lockMode = null;
+    }
+
+    public function getLockMode(): ?LockMode
+    {
+        return $this->lockMode;
     }
 
     public function seek(int $position, Whence $whence = Whence::Start): int

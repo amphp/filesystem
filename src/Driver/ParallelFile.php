@@ -43,6 +43,8 @@ final class ParallelFile implements File, \IteratorAggregate
 
     private readonly DeferredFuture $onClose;
 
+    private ?LockMode $lockMode = null;
+
     public function __construct(
         private readonly Internal\FileWorker $worker,
         int $id,
@@ -94,6 +96,7 @@ final class ParallelFile implements File, \IteratorAggregate
             $this->closing->await();
         } finally {
             $this->onClose->complete();
+            $this->lockMode = null;
         }
     }
 
@@ -143,17 +146,24 @@ final class ParallelFile implements File, \IteratorAggregate
         return $this->pendingWrites === 0 && $this->size <= $this->position;
     }
 
-    public function lock(LockMode $mode): bool
+    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void
     {
-        return $this->flock($mode);
+        $this->flock('lock', $mode, $cancellation);
+        $this->lockMode = $mode;
     }
 
     public function unlock(): void
     {
-        $this->flock(null);
+        $this->flock('unlock');
+        $this->lockMode = null;
     }
 
-    private function flock(?LockMode $mode): bool
+    public function getLockMode(): ?LockMode
+    {
+        return $this->lockMode;
+    }
+
+    private function flock(string $action, ?LockMode $mode = null, ?Cancellation $cancellation = null): void
     {
         if ($this->id === null) {
             throw new ClosedException("The file has been closed");
@@ -162,7 +172,7 @@ final class ParallelFile implements File, \IteratorAggregate
         $this->busy = true;
 
         try {
-            return $this->worker->execute(new Internal\FileTask('flock', [$mode], $this->id));
+            $this->worker->execute(new Internal\FileTask('flock', [$mode, $action], $this->id), $cancellation);
         } catch (TaskFailureException $exception) {
             throw new StreamException("Attempting to lock the file failed", 0, $exception);
         } catch (WorkerException $exception) {

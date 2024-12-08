@@ -4,6 +4,7 @@ namespace Amp\File;
 
 use Amp\ByteStream\StreamException;
 use Amp\Cancellation;
+use Amp\DeferredFuture;
 use Amp\Sync\Lock;
 use Amp\Sync\Mutex;
 use Amp\Sync\SyncException;
@@ -14,6 +15,9 @@ final class FileMutex implements Mutex
 {
     private const LATENCY_TIMEOUT = 0.01;
     private const DELAY_LIMIT = 1;
+
+    /** @var array<string, DeferredFuture> */
+    private static array $locks = [];
 
     private readonly Filesystem $filesystem;
 
@@ -37,28 +41,34 @@ final class FileMutex implements Mutex
             throw new SyncException(\sprintf('Directory of "%s" does not exist or is not a directory', $this->fileName));
         }
 
-        // Try to create and lock the file. If flock fails, someone else already has the lock,
-        // so set an asynchronous timer and try again.
-        for ($attempt = 0; true; ++$attempt) {
-            try {
-                $file = $this->filesystem->openFile($this->fileName, 'a');
+        // Await for another instance of the lock in the same process to be released.
+        (self::$locks[$this->fileName] ?? null)?->getFuture()->await();
 
+        self::$locks[$this->fileName] = $deferredFuture = new DeferredFuture();
+
+        try {
+            // Retry loop exists only for Windows.
+            for ($attempt = 0; true; ++$attempt) {
                 try {
-                    if ($file->lock(LockMode::Exclusive)) {
-                        return new Lock(fn () => $this->release($file));
-                    }
-                    $file->close();
+                    $file = $this->filesystem->openFile($this->fileName, 'a');
+
+                    $file->lock(LockMode::Exclusive, $cancellation);
+                    return new Lock(fn () => $this->release($file, $deferredFuture));
                 } catch (FilesystemException|StreamException $exception) {
-                    throw new SyncException($exception->getMessage(), previous: $exception);
-                }
-            } catch (FilesystemException $exception) {
-                if (!IS_WINDOWS) { // Windows fails to open the file if a lock is held.
-                    throw new SyncException($exception->getMessage(), previous: $exception);
+                    if (!IS_WINDOWS) {
+                        throw $exception;
+                    }
+
+                    // Windows fails to open the file if a lock is held.
+                    $multiplier = 2 ** \min(7, $attempt);
+                    delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * $multiplier), cancellation: $cancellation);
                 }
             }
+        } catch (FilesystemException|StreamException $exception) {
+            $deferredFuture->complete();
+            unset(self::$locks[$this->fileName]);
 
-            $multiplier = 2 ** \min(31, $attempt);
-            delay(\min(self::DELAY_LIMIT, self::LATENCY_TIMEOUT * $multiplier), cancellation: $cancellation);
+            throw new SyncException($exception->getMessage(), previous: $exception);
         }
     }
 
@@ -67,10 +77,8 @@ final class FileMutex implements Mutex
      *
      * @throws SyncException
      */
-    private function release(File $file): void
+    private function release(File $file, DeferredFuture $deferredFuture): void
     {
-        $file->close();
-
         try {
             $this->filesystem->deleteFile($this->fileName);
         } catch (FilesystemException $exception) {
@@ -83,5 +91,10 @@ final class FileMutex implements Mutex
                 previous: $exception,
             );
         }
+
+        unset(self::$locks[$this->fileName]);
+
+        $file->close();
+        $deferredFuture->complete();
     }
 }

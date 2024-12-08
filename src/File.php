@@ -6,6 +6,7 @@ use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStream;
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
+use Amp\Sync\Lock;
 
 interface File extends ReadableStream, WritableStream
 {
@@ -57,16 +58,21 @@ interface File extends ReadableStream, WritableStream
     public function truncate(int $size): void;
 
     /**
-     * Makes a non-blocking attempt to lock the file. Returns true if the lock was obtained.
+     * Non-blocking method to obtain a shared or exclusive lock on the file.
      *
      * @throws FilesystemException If there is an error when attempting to lock the file.
      * @throws ClosedException If the file has been closed.
      */
-    public function lock(LockMode $mode): bool;
+    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void;
 
     /**
      * @throws FilesystemException If there is an error when attempting to unlock the file.
      * @throws ClosedException If the file has been closed.
      */
     public function unlock(): void;
+
+    /**
+     * Returns the currently active lock mode, or null if the file is not locked.
+     */
+    public function getLockMode(): ?LockMode;
 }

@@ -101,12 +101,20 @@ final class FileTask implements Task
                     return null;
 
                 case "flock":
-                    [$mode] = $this->args;
-                    if ($mode) {
-                        return $file->lock($mode);
+                    [$mode, $action] = $this->args;
+                    switch ($action) {
+                        case 'lock':
+                            $file->lock($mode, $cancellation);
+                            break;
+
+                        case 'unlock':
+                            $file->unlock();
+                            break;
+
+                        default:
+                            throw new \Error("Invalid lock action - " . $action);
                     }
 
-                    $file->unlock();
                     return null;
 
                 default:
