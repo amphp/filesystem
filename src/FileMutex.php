@@ -7,8 +7,8 @@ use Amp\Cancellation;
 use Amp\Sync\Lock;
 use Amp\Sync\Mutex;
 use Amp\Sync\SyncException;
-use function Amp\delay;
 use const Amp\Process\IS_WINDOWS;
+use function Amp\delay;
 
 final class FileMutex implements Mutex
 {
