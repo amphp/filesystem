@@ -109,9 +109,22 @@ abstract class AsyncFileTest extends FileTest
         $future1 = async(fn () => $handle1->lock(LockType::Exclusive));
         $future2 = async(fn () => $handle2->lock(LockType::Exclusive));
 
-        EventLoop::delay(0.1, fn () => $handle1->unlock());
+        EventLoop::delay(0.1, function () use ($handle1, $handle2): void {
+            // Either file could obtain the lock first, so check both and release the one which obtained the lock.
+
+            if ($handle1->getLockType()) {
+                $handle1->unlock();
+            }
+
+            if ($handle2->getLockType()) {
+                $handle2->unlock();
+            }
+        });
 
         $future1->await();
         $future2->await();
+
+        $handle1->close();
+        $handle2->close();
     }
 }
