@@ -2,7 +2,7 @@
 
 namespace Amp\File;
 
-enum LockMode
+enum LockType
 {
     case Shared;
     case Exclusive;

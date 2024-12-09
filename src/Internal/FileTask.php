@@ -102,10 +102,10 @@ final class FileTask implements Task
                     return null;
 
                 case "flock":
-                    [$mode, $action] = $this->args;
+                    [$type, $action] = $this->args;
                     switch ($action) {
                         case 'lock':
-                            $file->lock($mode, $cancellation);
+                            $file->lock($type, $cancellation);
                             break;
 
                         case 'unlock':

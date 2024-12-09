@@ -5,7 +5,7 @@ namespace Amp\File\Test;
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
 use Amp\File;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Revolt\EventLoop;
 use function Amp\async;
@@ -106,8 +106,8 @@ abstract class AsyncFileTest extends FileTest
         $handle1 = $this->driver->openFile($path, "c+");
         $handle2 = $this->driver->openFile($path, "c+");
 
-        $future1 = async(fn () => $handle1->lock(LockMode::Exclusive));
-        $future2 = async(fn () => $handle2->lock(LockMode::Exclusive));
+        $future1 = async(fn () => $handle1->lock(LockType::Exclusive));
+        $future2 = async(fn () => $handle2->lock(LockType::Exclusive));
 
         EventLoop::delay(0.1, fn () => $handle1->unlock());
 

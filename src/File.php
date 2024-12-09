@@ -63,7 +63,7 @@ interface File extends ReadableStream, WritableStream
      * @throws FilesystemException If there is an error when attempting to lock the file.
      * @throws ClosedException If the file has been closed.
      */
-    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void;
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void;
 
     /**
      * @throws FilesystemException If there is an error when attempting to unlock the file.
@@ -72,7 +72,7 @@ interface File extends ReadableStream, WritableStream
     public function unlock(): void;
 
     /**
-     * Returns the currently active lock mode, or null if the file is not locked.
+     * Returns the currently active lock type, or null if the file is not locked.
      */
-    public function getLockMode(): ?LockMode;
+    public function getLockType(): ?LockType;
 }

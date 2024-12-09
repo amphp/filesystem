@@ -4,7 +4,7 @@ namespace Amp\File\Internal;
 
 use Amp\Cancellation;
 use Amp\File\FilesystemException;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use function Amp\delay;
 
 /**
@@ -14,7 +14,7 @@ use function Amp\delay;
  *
  * @throws FilesystemException
  */
-function lock(string $path, $handle, LockMode $mode, ?Cancellation $cancellation): void
+function lock(string $path, $handle, LockType $type, ?Cancellation $cancellation): void
 {
     static $latencyTimeout = 0.01;
     static $delayLimit = 1;
@@ -25,9 +25,9 @@ function lock(string $path, $handle, LockMode $mode, ?Cancellation $cancellation
         return true;
     };
 
-    $flags = \LOCK_NB | match ($mode) {
-        LockMode::Shared => \LOCK_SH,
-        LockMode::Exclusive => \LOCK_EX,
+    $flags = \LOCK_NB | match ($type) {
+        LockType::Shared => \LOCK_SH,
+        LockType::Exclusive => \LOCK_EX,
     };
 
     for ($attempt = 0; true; ++$attempt) {

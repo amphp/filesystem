@@ -52,7 +52,7 @@ final class FileMutex implements Mutex
                 try {
                     $file = $this->filesystem->openFile($this->fileName, 'a');
 
-                    $file->lock(LockMode::Exclusive, $cancellation);
+                    $file->lock(LockType::Exclusive, $cancellation);
                     return new Lock(fn () => $this->release($file, $deferredFuture));
                 } catch (FilesystemException|StreamException $exception) {
                     if (!IS_WINDOWS) {

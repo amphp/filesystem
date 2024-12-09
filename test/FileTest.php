@@ -4,7 +4,7 @@ namespace Amp\File\Test;
 
 use Amp\ByteStream\ClosedException;
 use Amp\File;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use Amp\File\Whence;
 
 use function Amp\async;
@@ -309,14 +309,14 @@ abstract class FileTest extends FilesystemTest
         $path = Fixture::path() . "/lock";
         $handle = $this->driver->openFile($path, "c+");
 
-        $handle->lock(LockMode::Shared);
-        self::assertSame(LockMode::Shared, $handle->getLockMode());
+        $handle->lock(LockType::Shared);
+        self::assertSame(LockType::Shared, $handle->getLockType());
 
-        $handle->lock(LockMode::Exclusive);
-        self::assertSame(LockMode::Exclusive, $handle->getLockMode());
+        $handle->lock(LockType::Exclusive);
+        self::assertSame(LockType::Exclusive, $handle->getLockType());
 
         $handle->unlock();
-        self::assertNull($handle->getLockMode());
+        self::assertNull($handle->getLockType());
 
         $handle->unlock(); // Assert no-op.
 
@@ -328,10 +328,10 @@ abstract class FileTest extends FilesystemTest
         $path = Fixture::path() . "/lock";
         $handle = $this->driver->openFile($path, "c+");
 
-        $handle->lock(LockMode::Exclusive);
+        $handle->lock(LockType::Exclusive);
 
         $handle->close();
-        self::assertNull($handle->getLockMode());
+        self::assertNull($handle->getLockType());
     }
 
     public function testLockAfterClose(): void
@@ -341,7 +341,7 @@ abstract class FileTest extends FilesystemTest
         $handle->close();
 
         $this->expectException(ClosedException::class);
-        $handle->lock(LockMode::Exclusive);
+        $handle->lock(LockType::Exclusive);
     }
 
     public function testUnlockAfterClose(): void

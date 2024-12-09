@@ -6,7 +6,7 @@ use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStreamIteratorAggregate;
 use Amp\Cancellation;
 use Amp\File\File;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -29,7 +29,7 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
 
     private bool $writable;
 
-    protected ?LockMode $lockMode = null;
+    protected ?LockType $lockMode = null;
 
     public function __construct(
         private readonly string $path,
@@ -131,10 +131,10 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
      */
     abstract protected function getFileHandle();
 
-    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
-        lock($this->getPath(), $this->getFileHandle(), $mode, $cancellation);
-        $this->lockMode = $mode;
+        lock($this->getPath(), $this->getFileHandle(), $type, $cancellation);
+        $this->lockMode = $type;
     }
 
     public function unlock(): void
@@ -143,7 +143,7 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
         $this->lockMode = null;
     }
 
-    public function getLockMode(): ?LockMode
+    public function getLockType(): ?LockType
     {
         return $this->lockMode;
     }

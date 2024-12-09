@@ -9,7 +9,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\File\File;
 use Amp\File\Internal;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use Amp\File\Whence;
 
 /**
@@ -26,7 +26,7 @@ final class BlockingFile implements File, \IteratorAggregate
 
     private readonly DeferredFuture $onClose;
 
-    private ?LockMode $lockMode = null;
+    private ?LockType $lockMode = null;
 
     /**
      * @param resource $handle An open filesystem descriptor.
@@ -62,15 +62,15 @@ final class BlockingFile implements File, \IteratorAggregate
     /**
      * Returns the currently active lock mode, or null if the file is not locked.
      */
-    public function getLockMode(): ?LockMode
+    public function getLockType(): ?LockType
     {
         return $this->lockMode;
     }
 
-    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
-        Internal\lock($this->path, $this->getFileHandle(), $mode, $cancellation);
-        $this->lockMode = $mode;
+        Internal\lock($this->path, $this->getFileHandle(), $type, $cancellation);
+        $this->lockMode = $type;
     }
 
     public function unlock(): void

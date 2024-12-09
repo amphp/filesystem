@@ -9,7 +9,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\File\File;
 use Amp\File\Internal;
-use Amp\File\LockMode;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -43,7 +43,7 @@ final class ParallelFile implements File, \IteratorAggregate
 
     private readonly DeferredFuture $onClose;
 
-    private ?LockMode $lockMode = null;
+    private ?LockType $lockMode = null;
 
     public function __construct(
         private readonly Internal\FileWorker $worker,
@@ -146,10 +146,10 @@ final class ParallelFile implements File, \IteratorAggregate
         return $this->pendingWrites === 0 && $this->size <= $this->position;
     }
 
-    public function lock(LockMode $mode, ?Cancellation $cancellation = null): void
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
-        $this->flock('lock', $mode, $cancellation);
-        $this->lockMode = $mode;
+        $this->flock('lock', $type, $cancellation);
+        $this->lockMode = $type;
     }
 
     public function unlock(): void
@@ -158,12 +158,12 @@ final class ParallelFile implements File, \IteratorAggregate
         $this->lockMode = null;
     }
 
-    public function getLockMode(): ?LockMode
+    public function getLockType(): ?LockType
     {
         return $this->lockMode;
     }
 
-    private function flock(string $action, ?LockMode $mode = null, ?Cancellation $cancellation = null): void
+    private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): void
     {
         if ($this->id === null) {
             throw new ClosedException("The file has been closed");
@@ -172,7 +172,7 @@ final class ParallelFile implements File, \IteratorAggregate
         $this->busy = true;
 
         try {
-            $this->worker->execute(new Internal\FileTask('flock', [$mode, $action], $this->id), $cancellation);
+            $this->worker->execute(new Internal\FileTask('flock', [$type, $action], $this->id), $cancellation);
         } catch (TaskFailureException $exception) {
             throw new StreamException("Attempting to lock the file failed", 0, $exception);
         } catch (WorkerException $exception) {
