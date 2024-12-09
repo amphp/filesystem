@@ -124,6 +124,7 @@ final class UvFile extends Internal\QueuedWritesFile
             $this->closing->await();
         } finally {
             $this->poll->done();
+            $this->lockMode = null;
         }
     }
 

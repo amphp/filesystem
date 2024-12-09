@@ -29,7 +29,7 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
 
     private bool $writable;
 
-    private ?LockMode $lockMode = null;
+    protected ?LockMode $lockMode = null;
 
     public function __construct(
         private readonly string $path,

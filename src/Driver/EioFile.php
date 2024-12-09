@@ -125,6 +125,7 @@ final class EioFile extends Internal\QueuedWritesFile
             $this->closing->await();
         } finally {
             $this->poll->done();
+            $this->lockMode = null;
         }
     }
 
