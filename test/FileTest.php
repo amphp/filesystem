@@ -4,6 +4,7 @@ namespace Amp\File\Test;
 
 use Amp\ByteStream\ClosedException;
 use Amp\File;
+use Amp\File\LockMode;
 use Amp\File\Whence;
 
 use function Amp\async;
@@ -301,6 +302,56 @@ abstract class FileTest extends FilesystemTest
         $this->assertSame("foo\0\0\0bar", $contents);
 
         $handle->close();
+    }
+
+    public function testLock(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+
+        $handle->lock(LockMode::Shared);
+        self::assertSame(LockMode::Shared, $handle->getLockMode());
+
+        $handle->lock(LockMode::Exclusive);
+        self::assertSame(LockMode::Exclusive, $handle->getLockMode());
+
+        $handle->unlock();
+        self::assertNull($handle->getLockMode());
+
+        $handle->unlock(); // Assert no-op.
+
+        $handle->close();
+    }
+
+    public function testLockThenClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+
+        $handle->lock(LockMode::Exclusive);
+
+        $handle->close();
+        self::assertNull($handle->getLockMode());
+    }
+
+    public function testLockAfterClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+        $handle->close();
+
+        $this->expectException(ClosedException::class);
+        $handle->lock(LockMode::Exclusive);
+    }
+
+    public function testUnlockAfterClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+        $handle->close();
+
+        $this->expectException(ClosedException::class);
+        $handle->unlock();
     }
 
     abstract protected function createDriver(): File\FilesystemDriver;

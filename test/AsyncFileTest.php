@@ -5,7 +5,9 @@ namespace Amp\File\Test;
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
 use Amp\File;
+use Amp\File\LockMode;
 use Amp\File\PendingOperationError;
+use Revolt\EventLoop;
 use function Amp\async;
 
 abstract class AsyncFileTest extends FileTest
@@ -93,5 +95,23 @@ abstract class AsyncFileTest extends FileTest
         }
 
         $this->assertSame("test", $handle->read());
+    }
+
+    public function testSimultaneousLock(): void
+    {
+        $this->setMinimumRuntime(0.1);
+        $this->setTimeout(0.5);
+
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        $future1 = async(fn () => $handle1->lock(LockMode::Exclusive));
+        $future2 = async(fn () => $handle2->lock(LockMode::Exclusive));
+
+        EventLoop::delay(0.1, fn () => $handle1->unlock());
+
+        $future1->await();
+        $future2->await();
     }
 }
