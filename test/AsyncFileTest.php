@@ -111,12 +111,13 @@ abstract class AsyncFileTest extends FileTest
 
         EventLoop::delay(0.1, function () use ($handle1, $handle2): void {
             // Either file could obtain the lock first, so check both and release the one which obtained the lock.
-
             if ($handle1->getLockType()) {
+                self::assertNull($handle2->getLockType());
+                self::assertSame(LockType::Exclusive, $handle1->getLockType());
                 $handle1->unlock();
-            }
-
-            if ($handle2->getLockType()) {
+            } else {
+                self::assertNull($handle1->getLockType());
+                self::assertSame(LockType::Exclusive, $handle2->getLockType());
                 $handle2->unlock();
             }
         });
