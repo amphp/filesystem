@@ -73,6 +73,16 @@ final class BlockingFile implements File, \IteratorAggregate
         $this->lockMode = $type;
     }
 
+    public function tryLock(LockType $type): bool
+    {
+        $locked = Internal\tryLock($this->path, $this->getFileHandle(), $type);
+        if ($locked) {
+            $this->lockMode = $type;
+        }
+
+        return $locked;
+    }
+
     public function unlock(): void
     {
         Internal\unlock($this->path, $this->getFileHandle());

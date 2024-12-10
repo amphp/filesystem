@@ -133,13 +133,23 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
 
     public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
-        lock($this->getPath(), $this->getFileHandle(), $type, $cancellation);
+        lock($this->path, $this->getFileHandle(), $type, $cancellation);
         $this->lockMode = $type;
+    }
+
+    public function tryLock(LockType $type): bool
+    {
+        $locked = tryLock($this->path, $this->getFileHandle(), $type);
+        if ($locked) {
+            $this->lockMode = $type;
+        }
+
+        return $locked;
     }
 
     public function unlock(): void
     {
-        unlock($this->getPath(), $this->getFileHandle());
+        unlock($this->path, $this->getFileHandle());
         $this->lockMode = null;
     }
 

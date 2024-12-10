@@ -152,6 +152,16 @@ final class ParallelFile implements File, \IteratorAggregate
         $this->lockMode = $type;
     }
 
+    public function tryLock(LockType $type): bool
+    {
+        $locked = $this->flock('try-lock', $type);
+        if ($locked) {
+            $this->lockMode = $type;
+        }
+
+        return $locked;
+    }
+
     public function unlock(): void
     {
         $this->flock('unlock');
@@ -163,7 +173,7 @@ final class ParallelFile implements File, \IteratorAggregate
         return $this->lockMode;
     }
 
-    private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): void
+    private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): bool
     {
         if ($this->id === null) {
             throw new ClosedException("The file has been closed");
@@ -172,7 +182,7 @@ final class ParallelFile implements File, \IteratorAggregate
         $this->busy = true;
 
         try {
-            $this->worker->execute(new Internal\FileTask('flock', [$type, $action], $this->id), $cancellation);
+            return $this->worker->execute(new Internal\FileTask('flock', [$type, $action], $this->id), $cancellation);
         } catch (TaskFailureException $exception) {
             throw new StreamException("Attempting to lock the file failed", 0, $exception);
         } catch (WorkerException $exception) {

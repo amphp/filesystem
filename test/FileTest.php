@@ -354,6 +354,37 @@ abstract class FileTest extends FilesystemTest
         $handle->unlock();
     }
 
+    public function testTryLock(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
+
+        self::assertFalse($handle2->tryLock(LockType::Exclusive));
+        self::assertNull($handle2->getLockType());
+
+        $handle1->unlock();
+        self::assertNull($handle1->getLockType());
+
+        self::assertTrue($handle2->tryLock(LockType::Shared));
+        self::assertSame(LockType::Shared, $handle2->getLockType());
+
+        self::assertTrue($handle1->tryLock(LockType::Shared));
+        self::assertSame(LockType::Shared, $handle1->getLockType());
+
+        self::assertFalse($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Shared, $handle1->getLockType());
+
+        $handle2->unlock();
+        self::assertNull($handle2->getLockType());
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
+    }
+
     abstract protected function createDriver(): File\FilesystemDriver;
 
     protected function setUp(): void

@@ -106,17 +106,20 @@ final class FileTask implements Task
                     switch ($action) {
                         case 'lock':
                             $file->lock($type, $cancellation);
-                            break;
+                            return true;
+
+                        case 'try-lock':
+                            return $file->tryLock($type);
 
                         case 'unlock':
                             $file->unlock();
-                            break;
+                            return true;
 
                         default:
                             throw new \Error("Invalid lock action - " . $action);
                     }
 
-                    return null;
+                    return false; // CS fixer fails without this return.
 
                 default:
                     throw new \Error('Invalid operation');

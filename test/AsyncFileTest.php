@@ -9,6 +9,7 @@ use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Revolt\EventLoop;
 use function Amp\async;
+use function Amp\delay;
 
 abstract class AsyncFileTest extends FileTest
 {
@@ -124,6 +125,32 @@ abstract class AsyncFileTest extends FileTest
 
         $future1->await();
         $future2->await();
+
+        $handle1->close();
+        $handle2->close();
+    }
+
+    public function testTryLockLoop(): void
+    {
+        $this->setMinimumRuntime(0.1);
+        $this->setTimeout(0.3);
+
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
+
+        EventLoop::delay(0.1, $handle1->unlock(...));
+
+        $future = async(function () use ($handle2): void {
+            while (!$handle2->tryLock(LockType::Exclusive)) {
+                delay(0.1);
+            }
+        });
+
+        $future->await();
 
         $handle1->close();
         $handle2->close();

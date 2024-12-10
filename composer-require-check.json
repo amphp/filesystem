@@ -21,6 +21,7 @@
         "filesystem",
         "openFile",
         "lock",
+        "tryLock",
         "unlock",
         "eio_cancel",
         "eio_chmod",
