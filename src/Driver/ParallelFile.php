@@ -43,7 +43,7 @@ final class ParallelFile implements File, \IteratorAggregate
 
     private readonly DeferredFuture $onClose;
 
-    private ?LockType $lockMode = null;
+    private ?LockType $lockType = null;
 
     public function __construct(
         private readonly Internal\FileWorker $worker,
@@ -96,7 +96,7 @@ final class ParallelFile implements File, \IteratorAggregate
             $this->closing->await();
         } finally {
             $this->onClose->complete();
-            $this->lockMode = null;
+            $this->lockType = null;
         }
     }
 
@@ -149,14 +149,14 @@ final class ParallelFile implements File, \IteratorAggregate
     public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
         $this->flock('lock', $type, $cancellation);
-        $this->lockMode = $type;
+        $this->lockType = $type;
     }
 
     public function tryLock(LockType $type): bool
     {
         $locked = $this->flock('try-lock', $type);
         if ($locked) {
-            $this->lockMode = $type;
+            $this->lockType = $type;
         }
 
         return $locked;
@@ -165,12 +165,12 @@ final class ParallelFile implements File, \IteratorAggregate
     public function unlock(): void
     {
         $this->flock('unlock');
-        $this->lockMode = null;
+        $this->lockType = null;
     }
 
     public function getLockType(): ?LockType
     {
-        return $this->lockMode;
+        return $this->lockType;
     }
 
     private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): bool

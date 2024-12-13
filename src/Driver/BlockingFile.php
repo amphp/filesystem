@@ -26,7 +26,7 @@ final class BlockingFile implements File, \IteratorAggregate
 
     private readonly DeferredFuture $onClose;
 
-    private ?LockType $lockMode = null;
+    private ?LockType $lockType = null;
 
     /**
      * @param resource $handle An open filesystem descriptor.
@@ -64,20 +64,20 @@ final class BlockingFile implements File, \IteratorAggregate
      */
     public function getLockType(): ?LockType
     {
-        return $this->lockMode;
+        return $this->lockType;
     }
 
     public function lock(LockType $type, ?Cancellation $cancellation = null): void
     {
         Internal\lock($this->path, $this->getFileHandle(), $type, $cancellation);
-        $this->lockMode = $type;
+        $this->lockType = $type;
     }
 
     public function tryLock(LockType $type): bool
     {
         $locked = Internal\tryLock($this->path, $this->getFileHandle(), $type);
         if ($locked) {
-            $this->lockMode = $type;
+            $this->lockType = $type;
         }
 
         return $locked;
@@ -86,7 +86,7 @@ final class BlockingFile implements File, \IteratorAggregate
     public function unlock(): void
     {
         Internal\unlock($this->path, $this->getFileHandle());
-        $this->lockMode = null;
+        $this->lockType = null;
     }
 
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
@@ -161,7 +161,7 @@ final class BlockingFile implements File, \IteratorAggregate
             throw new StreamException("Failed closing file '{$this->path}'");
         } finally {
             \restore_error_handler();
-            $this->lockMode = null;
+            $this->lockType = null;
         }
     }
 
