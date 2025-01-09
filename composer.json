@@ -54,7 +54,10 @@
         "psr-4": {
             "Amp\\File\\": "src"
         },
-        "files": ["src/functions.php"]
+        "files": [
+            "src/functions.php",
+            "src/Internal/functions.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

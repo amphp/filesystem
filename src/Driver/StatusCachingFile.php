@@ -5,6 +5,7 @@ namespace Amp\File\Driver;
 use Amp\ByteStream\ReadableStreamIteratorAggregate;
 use Amp\Cancellation;
 use Amp\File\File;
+use Amp\File\LockType;
 use Amp\File\Whence;
 
 /**
@@ -51,6 +52,26 @@ final class StatusCachingFile implements File, \IteratorAggregate
         } finally {
             $this->invalidate();
         }
+    }
+
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
+    {
+        $this->file->lock($type, $cancellation);
+    }
+
+    public function tryLock(LockType $type): bool
+    {
+        return $this->file->tryLock($type);
+    }
+
+    public function unlock(): void
+    {
+        $this->file->unlock();
+    }
+
+    public function getLockType(): ?LockType
+    {
+        return $this->file->getLockType();
     }
 
     public function close(): void

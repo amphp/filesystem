@@ -20,6 +20,9 @@
         "deleteFile",
         "filesystem",
         "openFile",
+        "lock",
+        "tryLock",
+        "unlock",
         "eio_cancel",
         "eio_chmod",
         "eio_chown",
@@ -83,7 +86,8 @@
         "uv_fs_utime",
         "uv_fs_write",
         "uv_fs_close",
-        "uv_strerror"
+        "uv_strerror",
+        "Amp\\Process\\IS_WINDOWS"
     ],
     "php-core-extensions": [
         "Core",

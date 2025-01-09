@@ -101,6 +101,26 @@ final class FileTask implements Task
                     $file->close();
                     return null;
 
+                case "flock":
+                    [$type, $action] = $this->args;
+                    switch ($action) {
+                        case 'lock':
+                            $file->lock($type, $cancellation);
+                            return true;
+
+                        case 'try-lock':
+                            return $file->tryLock($type);
+
+                        case 'unlock':
+                            $file->unlock();
+                            return true;
+
+                        default:
+                            throw new \Error("Invalid lock action - " . $action);
+                    }
+
+                    return false; // CS fixer fails without this return.
+
                 default:
                     throw new \Error('Invalid operation');
             }

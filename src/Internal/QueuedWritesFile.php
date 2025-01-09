@@ -6,6 +6,7 @@ use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStreamIteratorAggregate;
 use Amp\Cancellation;
 use Amp\File\File;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -27,6 +28,8 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
     protected bool $isReading = false;
 
     private bool $writable;
+
+    protected ?LockType $lockType = null;
 
     public function __construct(
         private readonly string $path,
@@ -119,6 +122,40 @@ abstract class QueuedWritesFile implements File, \IteratorAggregate
         $this->queue->push($future);
 
         $future->await();
+    }
+
+    /**
+     * @return resource
+     *
+     * @throws ClosedException If the file has been closed.
+     */
+    abstract protected function getFileHandle();
+
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
+    {
+        lock($this->path, $this->getFileHandle(), $type, $cancellation);
+        $this->lockType = $type;
+    }
+
+    public function tryLock(LockType $type): bool
+    {
+        $locked = tryLock($this->path, $this->getFileHandle(), $type);
+        if ($locked) {
+            $this->lockType = $type;
+        }
+
+        return $locked;
+    }
+
+    public function unlock(): void
+    {
+        unlock($this->path, $this->getFileHandle());
+        $this->lockType = null;
+    }
+
+    public function getLockType(): ?LockType
+    {
+        return $this->lockType;
     }
 
     public function seek(int $position, Whence $whence = Whence::Start): int

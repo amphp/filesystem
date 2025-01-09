@@ -46,6 +46,15 @@ final class UvFile extends Internal\QueuedWritesFile
         $this->onClose = new DeferredFuture;
     }
 
+    protected function getFileHandle()
+    {
+        if ($this->closing) {
+            throw new ClosedException("The file has been closed");
+        }
+
+        return $this->fh;
+    }
+
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
     {
         if ($this->isReading || !$this->queue->isEmpty()) {
@@ -115,6 +124,7 @@ final class UvFile extends Internal\QueuedWritesFile
             $this->closing->await();
         } finally {
             $this->poll->done();
+            $this->lockType = null;
         }
     }
 

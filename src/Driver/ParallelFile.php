@@ -9,6 +9,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\File\File;
 use Amp\File\Internal;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
 use Amp\File\Whence;
 use Amp\Future;
@@ -41,6 +42,8 @@ final class ParallelFile implements File, \IteratorAggregate
     private ?Future $closing = null;
 
     private readonly DeferredFuture $onClose;
+
+    private ?LockType $lockType = null;
 
     public function __construct(
         private readonly Internal\FileWorker $worker,
@@ -93,6 +96,7 @@ final class ParallelFile implements File, \IteratorAggregate
             $this->closing->await();
         } finally {
             $this->onClose->complete();
+            $this->lockType = null;
         }
     }
 
@@ -140,6 +144,52 @@ final class ParallelFile implements File, \IteratorAggregate
     public function eof(): bool
     {
         return $this->pendingWrites === 0 && $this->size <= $this->position;
+    }
+
+    public function lock(LockType $type, ?Cancellation $cancellation = null): void
+    {
+        $this->flock('lock', $type, $cancellation);
+        $this->lockType = $type;
+    }
+
+    public function tryLock(LockType $type): bool
+    {
+        $locked = $this->flock('try-lock', $type);
+        if ($locked) {
+            $this->lockType = $type;
+        }
+
+        return $locked;
+    }
+
+    public function unlock(): void
+    {
+        $this->flock('unlock');
+        $this->lockType = null;
+    }
+
+    public function getLockType(): ?LockType
+    {
+        return $this->lockType;
+    }
+
+    private function flock(string $action, ?LockType $type = null, ?Cancellation $cancellation = null): bool
+    {
+        if ($this->id === null) {
+            throw new ClosedException("The file has been closed");
+        }
+
+        $this->busy = true;
+
+        try {
+            return $this->worker->execute(new Internal\FileTask('flock', [$type, $action], $this->id), $cancellation);
+        } catch (TaskFailureException $exception) {
+            throw new StreamException("Attempting to lock the file failed", 0, $exception);
+        } catch (WorkerException $exception) {
+            throw new StreamException("Sending the task to the worker failed", 0, $exception);
+        } finally {
+            $this->busy = false;
+        }
     }
 
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string

@@ -14,24 +14,34 @@ final class EioFile extends Internal\QueuedWritesFile
 {
     private readonly Internal\EioPoll $poll;
 
-    /** @var resource eio file handle. */
-    private $fh;
+    /** @var int eio file handle resource ID. */
+    private int $fh;
+
+    /** @var resource|closed-resource */
+    private $fd;
 
     private ?Future $closing = null;
 
     private readonly DeferredFuture $onClose;
 
-    /**
-     * @param resource $fh
-     */
-    public function __construct(Internal\EioPoll $poll, $fh, string $path, string $mode, int $size)
+    public function __construct(Internal\EioPoll $poll, int $fh, string $path, string $mode, int $size)
     {
         parent::__construct($path, $mode, $size);
 
         $this->poll = $poll;
         $this->fh = $fh;
+        $this->fd = \fopen('php://fd/' . $this->fh, 'r');
 
         $this->onClose = new DeferredFuture;
+    }
+
+    protected function getFileHandle()
+    {
+        if (!\is_resource($this->fd)) {
+            throw new ClosedException("The file has been closed");
+        }
+
+        return $this->fd;
     }
 
     public function read(?Cancellation $cancellation = null, int $length = self::DEFAULT_READ_LENGTH): ?string
@@ -99,6 +109,10 @@ final class EioFile extends Internal\QueuedWritesFile
             return;
         }
 
+        if (\is_resource($this->fd)) {
+            \fclose($this->fd);
+        }
+
         $this->closing = $this->onClose->getFuture();
         $this->poll->listen();
 
@@ -111,6 +125,7 @@ final class EioFile extends Internal\QueuedWritesFile
             $this->closing->await();
         } finally {
             $this->poll->done();
+            $this->lockType = null;
         }
     }
 

@@ -5,8 +5,11 @@ namespace Amp\File\Test;
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
 use Amp\File;
+use Amp\File\LockType;
 use Amp\File\PendingOperationError;
+use Revolt\EventLoop;
 use function Amp\async;
+use function Amp\delay;
 
 abstract class AsyncFileTest extends FileTest
 {
@@ -93,5 +96,63 @@ abstract class AsyncFileTest extends FileTest
         }
 
         $this->assertSame("test", $handle->read());
+    }
+
+    public function testSimultaneousLock(): void
+    {
+        $this->setMinimumRuntime(0.1);
+        $this->setTimeout(0.5);
+
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        $future1 = async(fn () => $handle1->lock(LockType::Exclusive));
+        $future2 = async(fn () => $handle2->lock(LockType::Exclusive));
+
+        EventLoop::delay(0.1, function () use ($handle1, $handle2): void {
+            // Either file could obtain the lock first, so check both and release the one which obtained the lock.
+            if ($handle1->getLockType()) {
+                self::assertNull($handle2->getLockType());
+                self::assertSame(LockType::Exclusive, $handle1->getLockType());
+                $handle1->unlock();
+            } else {
+                self::assertNull($handle1->getLockType());
+                self::assertSame(LockType::Exclusive, $handle2->getLockType());
+                $handle2->unlock();
+            }
+        });
+
+        $future1->await();
+        $future2->await();
+
+        $handle1->close();
+        $handle2->close();
+    }
+
+    public function testTryLockLoop(): void
+    {
+        $this->setMinimumRuntime(0.1);
+        $this->setTimeout(0.3);
+
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
+
+        EventLoop::delay(0.1, $handle1->unlock(...));
+
+        $future = async(function () use ($handle2): void {
+            while (!$handle2->tryLock(LockType::Exclusive)) {
+                delay(0.1);
+            }
+        });
+
+        $future->await();
+
+        $handle1->close();
+        $handle2->close();
     }
 }

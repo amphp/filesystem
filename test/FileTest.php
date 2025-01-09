@@ -4,6 +4,7 @@ namespace Amp\File\Test;
 
 use Amp\ByteStream\ClosedException;
 use Amp\File;
+use Amp\File\LockType;
 use Amp\File\Whence;
 
 use function Amp\async;
@@ -301,6 +302,87 @@ abstract class FileTest extends FilesystemTest
         $this->assertSame("foo\0\0\0bar", $contents);
 
         $handle->close();
+    }
+
+    public function testLock(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+
+        $handle->lock(LockType::Shared);
+        self::assertSame(LockType::Shared, $handle->getLockType());
+
+        $handle->lock(LockType::Exclusive);
+        self::assertSame(LockType::Exclusive, $handle->getLockType());
+
+        $handle->unlock();
+        self::assertNull($handle->getLockType());
+
+        $handle->unlock(); // Assert no-op.
+
+        $handle->close();
+    }
+
+    public function testLockThenClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+
+        $handle->lock(LockType::Exclusive);
+
+        $handle->close();
+        self::assertNull($handle->getLockType());
+    }
+
+    public function testLockAfterClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+        $handle->close();
+
+        $this->expectException(ClosedException::class);
+        $handle->lock(LockType::Exclusive);
+    }
+
+    public function testUnlockAfterClose(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle = $this->driver->openFile($path, "c+");
+        $handle->close();
+
+        $this->expectException(ClosedException::class);
+        $handle->unlock();
+    }
+
+    public function testTryLock(): void
+    {
+        $path = Fixture::path() . "/lock";
+        $handle1 = $this->driver->openFile($path, "c+");
+        $handle2 = $this->driver->openFile($path, "c+");
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
+
+        self::assertFalse($handle2->tryLock(LockType::Exclusive));
+        self::assertNull($handle2->getLockType());
+
+        $handle1->unlock();
+        self::assertNull($handle1->getLockType());
+
+        self::assertTrue($handle2->tryLock(LockType::Shared));
+        self::assertSame(LockType::Shared, $handle2->getLockType());
+
+        self::assertTrue($handle1->tryLock(LockType::Shared));
+        self::assertSame(LockType::Shared, $handle1->getLockType());
+
+        self::assertFalse($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Shared, $handle1->getLockType());
+
+        $handle2->unlock();
+        self::assertNull($handle2->getLockType());
+
+        self::assertTrue($handle1->tryLock(LockType::Exclusive));
+        self::assertSame(LockType::Exclusive, $handle1->getLockType());
     }
 
     abstract protected function createDriver(): File\FilesystemDriver;
