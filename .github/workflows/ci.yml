@@ -11,8 +11,9 @@ jobs:
         include:
           - operating-system: 'ubuntu-latest'
             php-version: '8.1'
-            extensions: uv, eio
-            install-eio: true
+            extensions: uv
+            style-fix: none
+            static-analysis: none
 
           - operating-system: 'ubuntu-latest'
             php-version: '8.2'
