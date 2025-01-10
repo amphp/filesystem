@@ -67,6 +67,7 @@ final class ParallelFilesystemDriver implements FilesystemDriver
         if ($this->workerStorage->count() < $this->pool->getWorkerLimit()) {
             $this->pendingWorker = async($this->pool->getWorker(...));
             $worker = $this->pendingWorker->await();
+            $this->pendingWorker = null;
 
             $this->workerStorage[$worker] = 1;
 
